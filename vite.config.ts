@@ -24,7 +24,11 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      // Force all imports of `three` to the single copy in our top-level node_modules
+      "three": path.resolve(import.meta.dirname, "node_modules", "three"),
     },
+    // Ensure Vite dedupes `three` so multiple copies aren't bundled
+    dedupe: ["three"],
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {

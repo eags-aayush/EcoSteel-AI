@@ -1,9 +1,29 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { storage } from "./storage";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve favicon
+  app.get('/favicon.ico', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'client', 'public', 'favicon.png'));
+  });
+
+  // Handle browser extension requests to prevent 426 errors
+  app.get('/hybridaction/*', (req, res) => {
+    const data = {};
+    const callback = req.query.callback as string;
+    if (callback) {
+      res.type('text/javascript').send(`${callback}(${JSON.stringify(data)})`);
+    } else {
+      res.json(data);
+    }
+  });
+
   // API Routes for data fetching
   app.get("/api/furnaces", async (_req, res) => {
     try {
@@ -129,15 +149,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
             storage.getKPIs(),
           ]);
 
-          ws.send(JSON.stringify({
+          // Add additional sensor data for gauges (using global simulation values)
+          const extendedSensors = [
+            ...sensors,
+            {
+              id: "battery",
+              name: "System Battery",
+              type: "battery",
+              value: Math.max(0, Math.min(100, 85 + Math.random() * 10)),
+              unit: "%",
+              status: "healthy",
+              zone: "System",
+              trend: "stable",
+              lastUpdated: new Date().toISOString()
+            },
+            {
+              id: "airQuality",
+              name: "Air Quality Index",
+              type: "airQuality",
+              value: Math.max(0, 25 + Math.random() * 30),
+              unit: "AQI",
+              status: "healthy",
+              zone: "Environment",
+              trend: "stable",
+              lastUpdated: new Date().toISOString()
+            },
+            {
+              id: "scrapLevel",
+              name: "Scrap Level",
+              type: "scrapLevel",
+              value: Math.max(0, Math.min(100, 75 + Math.random() * 20)),
+              unit: "%",
+              status: "healthy",
+              zone: "Input",
+              trend: "stable",
+              lastUpdated: new Date().toISOString()
+            }
+          ];
+
+          const updateData = {
             type: 'update',
             data: {
               furnaces,
-              sensors,
+              sensors: extendedSensors,
               kpis,
               timestamp: new Date().toISOString(),
             },
-          }));
+          };
+
+          console.log('Sending WebSocket update:', {
+            furnacesCount: furnaces.length,
+            sensorsCount: extendedSensors.length,
+            kpisCount: kpis.length,
+            sampleSensor: extendedSensors.find(s => s.type === 'temperature'),
+            sampleGauge: extendedSensors.find(s => s.type === 'battery')
+          });
+
+          ws.send(JSON.stringify(updateData));
         } catch (error) {
           console.error('Error sending WebSocket update:', error);
         }
@@ -259,6 +327,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const change = (Math.random() - 0.5) * (kpi.value * 0.02);
         await storage.updateKPI(kpi.label, kpi.value + change, change / kpi.value * 100);
       }
+
+      // Simulate additional sensor updates for gauges
+      // Battery level simulation
+      const batteryChange = (Math.random() - 0.5) * 2;
+      const currentBattery = 85 + Math.random() * 10 + batteryChange;
+      // Air quality simulation
+      const airQualityChange = (Math.random() - 0.5) * 5;
+      const currentAirQuality = Math.max(0, 25 + Math.random() * 30 + airQualityChange);
+      // Scrap level simulation
+      const scrapChange = (Math.random() - 0.5) * 3;
+      const currentScrapLevel = Math.max(0, Math.min(100, 75 + Math.random() * 20 + scrapChange));
 
       // Add production metric
       const totalProduction = furnaces

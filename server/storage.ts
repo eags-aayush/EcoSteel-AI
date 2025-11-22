@@ -1,5 +1,16 @@
 import { randomUUID } from "crypto";
+import mongoose from "mongoose";
 import type { Furnace, Sensor, Alert, ProductionMetrics, Prediction, CameraFeed, KPI, Hotspot } from "@shared/schema";
+import {
+  FurnaceModel,
+  SensorModel,
+  AlertModel,
+  ProductionMetricsModel,
+  PredictionModel,
+  CameraFeedModel,
+  KPIModel,
+  HotspotModel,
+} from "./models";
 
 export interface IStorage {
   // Furnaces
@@ -64,7 +75,7 @@ export class MemStorage implements IStorage {
     const initialFurnaces: Furnace[] = [
       {
         id: "F1",
-        name: "Blast Furnace 1",
+        name: "Machine 1",
         status: "active",
         temperature: 1650,
         targetTemperature: 1700,
@@ -77,7 +88,7 @@ export class MemStorage implements IStorage {
       },
       {
         id: "F2",
-        name: "Blast Furnace 2",
+        name: "Machine 2",
         status: "active",
         temperature: 1720,
         targetTemperature: 1700,
@@ -90,7 +101,7 @@ export class MemStorage implements IStorage {
       },
       {
         id: "F3",
-        name: "Blast Furnace 3",
+        name: "Machine 3",
         status: "active",
         temperature: 1680,
         targetTemperature: 1700,
@@ -103,7 +114,7 @@ export class MemStorage implements IStorage {
       },
       {
         id: "F4",
-        name: "Electric Arc Furnace 1",
+        name: "Machine 4",
         status: "idle",
         temperature: 850,
         targetTemperature: 1600,
@@ -116,7 +127,7 @@ export class MemStorage implements IStorage {
       },
       {
         id: "F5",
-        name: "Electric Arc Furnace 2",
+        name: "Machine 5",
         status: "maintenance",
         temperature: 320,
         targetTemperature: 0,
@@ -129,7 +140,7 @@ export class MemStorage implements IStorage {
       },
       {
         id: "F6",
-        name: "Ladle Furnace 1",
+        name: "Machine 6",
         status: "active",
         temperature: 1580,
         targetTemperature: 1600,
@@ -242,7 +253,7 @@ export class MemStorage implements IStorage {
     this.hotspots = [
       {
         id: "HS1",
-        name: "Blast Furnace 1",
+        name: "Machine 1",
         position: { x: -2, y: 0, z: 0 },
         sensors: [
           { name: "Temperature", value: 1650, unit: "°C", status: "normal" },
@@ -415,4 +426,285 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class MongoStorage implements IStorage {
+  constructor() {
+    // Initialize with seed data if collections are empty
+    this.initializeData();
+  }
+
+  private async initializeData() {
+    try {
+      // Always seed/update initial data
+      await this.seedInitialData();
+    } catch (error) {
+      console.error('Error initializing MongoDB data:', error);
+    }
+  }
+
+  private async seedInitialData() {
+    // Seed furnaces with upsert
+    const initialFurnaces = [
+      {
+        id: "F1",
+        name: "Machine 1",
+        status: "active" as const,
+        temperature: 1650,
+        targetTemperature: 1700,
+        pressure: 2.8,
+        targetPressure: 3.0,
+        productionRate: 485,
+        energyConsumption: 1240,
+        composition: { carbon: 4.2, silicon: 0.8, manganese: 0.5, iron: 94.5 },
+        lastUpdated: new Date().toISOString(),
+      },
+      {
+        id: "F2",
+        name: "Machine 2",
+        status: "active" as const,
+        temperature: 1720,
+        targetTemperature: 1700,
+        pressure: 3.1,
+        targetPressure: 3.0,
+        productionRate: 502,
+        energyConsumption: 1280,
+        composition: { carbon: 4.0, silicon: 0.7, manganese: 0.6, iron: 94.7 },
+        lastUpdated: new Date().toISOString(),
+      },
+      {
+        id: "F3",
+        name: "Machine 3",
+        status: "active" as const,
+        temperature: 1680,
+        targetTemperature: 1700,
+        pressure: 2.9,
+        targetPressure: 3.0,
+        productionRate: 495,
+        energyConsumption: 1260,
+        composition: { carbon: 4.1, silicon: 0.9, manganese: 0.4, iron: 94.6 },
+        lastUpdated: new Date().toISOString(),
+      },
+      {
+        id: "F4",
+        name: "Machine 4",
+        status: "idle" as const,
+        temperature: 850,
+        targetTemperature: 1600,
+        pressure: 1.0,
+        targetPressure: 1.0,
+        productionRate: 0,
+        energyConsumption: 120,
+        composition: { carbon: 0.2, silicon: 0.1, manganese: 0.1, iron: 99.6 },
+        lastUpdated: new Date().toISOString(),
+      },
+      {
+        id: "F5",
+        name: "Machine 5",
+        status: "maintenance" as const,
+        temperature: 320,
+        targetTemperature: 0,
+        pressure: 0.8,
+        targetPressure: 1.0,
+        productionRate: 0,
+        energyConsumption: 15,
+        composition: { carbon: 0.0, silicon: 0.0, manganese: 0.0, iron: 100.0 },
+        lastUpdated: new Date().toISOString(),
+      },
+      {
+        id: "F6",
+        name: "Machine 6",
+        status: "active" as const,
+        temperature: 1580,
+        targetTemperature: 1600,
+        pressure: 1.2,
+        targetPressure: 1.0,
+        productionRate: 180,
+        energyConsumption: 420,
+        composition: { carbon: 0.3, silicon: 0.2, manganese: 0.8, iron: 98.7 },
+        lastUpdated: new Date().toISOString(),
+      },
+    ];
+
+    for (const furnace of initialFurnaces) {
+      await FurnaceModel.findOneAndUpdate({ id: furnace.id }, furnace, { upsert: true });
+    }
+
+    // Seed sensors with upsert
+    const initialSensors = [
+      { id: "T001", name: "M1 Top Temp", type: "temperature" as const, value: 1650, unit: "°C", status: "healthy" as const, zone: "Zone A", trend: "stable" as const, lastUpdated: new Date().toISOString() },
+      { id: "T002", name: "M2 Top Temp", type: "temperature" as const, value: 1720, unit: "°C", status: "warning" as const, zone: "Zone A", trend: "up" as const, lastUpdated: new Date().toISOString() },
+      { id: "P001", name: "M1 Pressure", type: "pressure" as const, value: 2.8, unit: "bar", status: "healthy" as const, zone: "Zone A", trend: "stable" as const, lastUpdated: new Date().toISOString() },
+      { id: "V001", name: "Motor 1 Vib", type: "vibration" as const, value: 2.3, unit: "mm/s", status: "healthy" as const, zone: "Zone D", trend: "stable" as const, lastUpdated: new Date().toISOString() },
+      { id: "V002", name: "Motor 2 Vib", type: "vibration" as const, value: 4.8, unit: "mm/s", status: "critical" as const, zone: "Zone D", trend: "up" as const, lastUpdated: new Date().toISOString() },
+    ];
+
+    for (const sensor of initialSensors) {
+      await SensorModel.findOneAndUpdate({ id: sensor.id }, sensor, { upsert: true });
+    }
+
+    // Seed KPIs with upsert
+    const initialKPIs = [
+      { label: "Production Rate", value: 2847, unit: "tons/day", change: 5.2, trend: "up" as const, status: "good" as const },
+      { label: "Energy Efficiency", value: 87.3, unit: "%", change: 2.1, trend: "up" as const, status: "good" as const },
+      { label: "Quality Score", value: 94.6, unit: "%", change: -0.8, trend: "down" as const, status: "warning" as const },
+    ];
+
+    for (const kpi of initialKPIs) {
+      await KPIModel.findOneAndUpdate({ label: kpi.label }, kpi, { upsert: true });
+    }
+
+    // Seed hotspots with upsert
+    const initialHotspots = [
+      {
+        id: "HS1",
+        name: "Machine 1",
+        position: { x: -2, y: 0, z: 0 },
+        sensors: [
+          { name: "Temperature", value: 1650, unit: "°C", status: "normal" },
+          { name: "Pressure", value: 2.8, unit: "bar", status: "normal" },
+        ],
+        status: "normal" as const,
+      },
+    ];
+
+    for (const hotspot of initialHotspots) {
+      await HotspotModel.findOneAndUpdate({ id: hotspot.id }, hotspot, { upsert: true });
+    }
+  }
+
+  async getFurnaces(): Promise<Furnace[]> {
+    const docs = await FurnaceModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async getFurnace(id: string): Promise<Furnace | undefined> {
+    const doc = await FurnaceModel.findOne({ id });
+    return doc?.toObject();
+  }
+
+  async updateFurnaceData(id: string, data: Partial<Furnace>): Promise<Furnace> {
+    const updated = await FurnaceModel.findOneAndUpdate(
+      { id },
+      { ...data, lastUpdated: new Date().toISOString() },
+      { new: true }
+    );
+    if (!updated) throw new Error(`Furnace ${id} not found`);
+    return updated.toObject();
+  }
+
+  async getSensors(): Promise<Sensor[]> {
+    const docs = await SensorModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async getSensor(id: string): Promise<Sensor | undefined> {
+    const doc = await SensorModel.findOne({ id });
+    return doc?.toObject();
+  }
+
+  async updateSensorValue(id: string, value: number): Promise<Sensor> {
+    const updated = await SensorModel.findOneAndUpdate(
+      { id },
+      { value, lastUpdated: new Date().toISOString() },
+      { new: true }
+    );
+    if (!updated) throw new Error(`Sensor ${id} not found`);
+    return updated.toObject();
+  }
+
+  async getAlerts(): Promise<Alert[]> {
+    const docs = await AlertModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async createAlert(alert: Omit<Alert, "id">): Promise<Alert> {
+    const newAlert = new AlertModel({ ...alert, id: randomUUID() });
+    const saved = await newAlert.save();
+    return saved.toObject();
+  }
+
+  async acknowledgeAlert(id: string): Promise<Alert> {
+    const updated = await AlertModel.findOneAndUpdate(
+      { id },
+      { acknowledged: true },
+      { new: true }
+    );
+    if (!updated) throw new Error(`Alert ${id} not found`);
+    return updated.toObject();
+  }
+
+  async getProductionMetrics(timeRange: string): Promise<ProductionMetrics[]> {
+    const docs = await ProductionMetricsModel.find().sort({ timestamp: -1 }).limit(24);
+    return docs.map(doc => doc.toObject());
+  }
+
+  async addProductionMetric(metric: ProductionMetrics): Promise<void> {
+    await new ProductionMetricsModel(metric).save();
+  }
+
+  async getPredictions(): Promise<Prediction[]> {
+    const docs = await PredictionModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async createPrediction(prediction: Omit<Prediction, "id">): Promise<Prediction> {
+    const newPrediction = new PredictionModel({ ...prediction, id: randomUUID() });
+    const saved = await newPrediction.save();
+    return saved.toObject();
+  }
+
+  async getCameraFeeds(): Promise<CameraFeed[]> {
+    const docs = await CameraFeedModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async updateCameraDetections(id: string, detections: CameraFeed["detections"]): Promise<CameraFeed> {
+    const updated = await CameraFeedModel.findOneAndUpdate(
+      { id },
+      { detections, defectCount: detections.length, lastUpdate: new Date().toISOString() },
+      { new: true }
+    );
+    if (!updated) throw new Error(`Camera ${id} not found`);
+    return updated.toObject();
+  }
+
+  async getKPIs(): Promise<KPI[]> {
+    const docs = await KPIModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+
+  async updateKPI(label: string, value: number, change: number): Promise<void> {
+    await KPIModel.findOneAndUpdate(
+      { label },
+      { value, change },
+      { upsert: true }
+    );
+  }
+
+  async getHotspots(): Promise<Hotspot[]> {
+    const docs = await HotspotModel.find();
+    return docs.map(doc => doc.toObject());
+  }
+}
+
+// Connect to MongoDB and choose storage
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://aayush:BOMB6291@cluster0.aay9fjf.mongodb.net/';
+
+let storage: IStorage;
+
+if (process.env.NODE_ENV === 'production' || process.env.USE_MONGODB === 'true') {
+  // Connect to MongoDB
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('Connected to MongoDB');
+      storage = new MongoStorage();
+    })
+    .catch((error) => {
+      console.error('MongoDB connection error:', error);
+      console.log('Falling back to in-memory storage');
+      storage = new MemStorage();
+    });
+} else {
+  storage = new MemStorage();
+}
+
+export { storage };

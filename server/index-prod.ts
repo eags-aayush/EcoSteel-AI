@@ -3,7 +3,8 @@ import path from "node:path";
 import { type Server } from "node:http";
 
 import express, { type Express } from "express";
-import runApp from "./app";
+import { app } from "./app";
+import { registerRoutes } from "./routes";
 
 export async function serveStatic(app: Express, _server: Server) {
   const distPath = path.resolve(import.meta.dirname, "public");
@@ -23,5 +24,8 @@ export async function serveStatic(app: Express, _server: Server) {
 }
 
 (async () => {
-  await runApp(serveStatic);
+  await registerRoutes(app);
+  await serveStatic(app, {} as Server);
 })();
+
+export default app;
